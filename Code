@@ -1,0 +1,584 @@
+
+import json
+import os
+import random
+from datetime import datetime
+
+# ==========================================
+# CYBER DETECTIVE - DIGITAL FORENSICS LAB
+# Educational defensive cybersecurity game
+# ==========================================
+
+SAVE_FILE = "cyber_detective_save.json"
+
+player_name = input("Enter investigator name: ").strip()
+
+if player_name == "":
+    player_name = "Rookie Detective"
+
+score = 0
+xp = 0
+level = 1
+completed_cases = []
+evidence_locker = []
+investigation_reports = []
+
+# ------------------------------------------
+# FICTIONAL INVESTIGATION DATABASE
+# ------------------------------------------
+
+cases = {
+    1: {
+        "name": "THE MIDNIGHT LOGIN",
+        "description": "A fictional company reports unusual account activity.",
+        "victim": "NovaTech Corporation",
+        "severity": "HIGH",
+        "suspects": ["192.0.2.45", "198.51.100.23"],
+        "correct_ip": "192.0.2.45",
+        "clues": [
+            "Multiple failed login attempts detected.",
+            "An unfamiliar location appears in the login history.",
+            "A successful login occurred after repeated failures."
+        ],
+        "logs": [
+            "08:10:22 INFO User admin logged in successfully",
+            "08:12:11 INFO User employee logged in successfully",
+            "23:41:02 WARNING Failed login from 192.0.2.45",
+            "23:41:08 WARNING Failed login from 192.0.2.45",
+            "23:41:15 WARNING Failed login from 192.0.2.45",
+            "23:42:01 WARNING Failed login from 192.0.2.45",
+            "23:43:19 ALERT Successful login from 192.0.2.45",
+            "23:44:05 INFO Account settings viewed",
+            "23:46:30 INFO User logged out"
+        ],
+        "answer": "Repeated failed logins followed by a successful login from the same fictional IP.",
+        "recommendation": "Review account access, reset affected credentials and enable multi-factor authentication."
+    },
+
+    2: {
+        "name": "THE DATA LEAK MYSTERY",
+        "description": "A fictional school database reports unusual data access.",
+        "victim": "Central Academy",
+        "severity": "CRITICAL",
+        "suspects": ["203.0.113.10", "198.51.100.44"],
+        "correct_ip": "203.0.113.10",
+        "clues": [
+            "An unusually large data request occurred.",
+            "The request came from an unfamiliar address.",
+            "Sensitive database records were accessed."
+        ],
+        "logs": [
+            "10:00:01 INFO Database service started",
+            "10:05:20 INFO Normal student record viewed",
+            "10:15:30 INFO Teacher account accessed",
+            "11:30:10 WARNING Large database request from 203.0.113.10",
+            "11:30:15 ALERT Unusual record export detected",
+            "11:30:19 ALERT 4500 records accessed",
+            "11:31:00 INFO Database service running",
+            "11:45:12 INFO Administrator notified"
+        ],
+        "answer": "An unusually large record-access event was detected from a fictional unfamiliar address.",
+        "recommendation": "Restrict access, preserve audit logs and review database permissions."
+    },
+
+    3: {
+        "name": "THE FAKE WEBSITE",
+        "description": "Employees report receiving suspicious website links.",
+        "victim": "BlueSky Finance",
+        "severity": "HIGH",
+        "suspects": ["198.51.100.70", "203.0.113.80"],
+        "correct_ip": "198.51.100.70",
+        "clues": [
+            "A suspicious website was reported.",
+            "The domain does not match the company's official domain.",
+            "Several employees visited the suspicious address."
+        ],
+        "logs": [
+            "09:00:00 INFO Employee portal opened",
+            "09:15:11 INFO Official company website visited",
+            "09:30:20 WARNING Unknown domain visited",
+            "09:30:21 ALERT Suspicious domain reported",
+            "09:35:10 WARNING Multiple employees visited unknown domain",
+            "09:40:00 INFO Security team notified",
+            "09:45:30 INFO Website access review started"
+        ],
+        "answer": "A fictional suspicious website was visited by multiple employees.",
+        "recommendation": "Block the reported domain through approved security controls and educate employees about suspicious links."
+    },
+
+    4: {
+        "name": "THE MALWARE ALERT",
+        "description": "A fictional workstation triggered a security warning.",
+        "victim": "PixelWorks Studio",
+        "severity": "CRITICAL",
+        "suspects": ["203.0.113.55", "192.0.2.90"],
+        "correct_ip": "203.0.113.55",
+        "clues": [
+            "An unknown application appeared.",
+            "A security alert was generated.",
+            "Unexpected outbound network activity was recorded."
+        ],
+        "logs": [
+            "08:00:00 INFO Workstation started",
+            "08:10:10 INFO Approved editor launched",
+            "08:45:20 WARNING Unknown application detected",
+            "08:45:25 ALERT Security scan warning",
+            "08:46:00 WARNING Unusual outbound connection",
+            "08:47:10 ALERT Application quarantined",
+            "09:00:00 INFO Security team notified"
+        ],
+        "answer": "An unknown application triggered security alerts and unusual network activity.",
+        "recommendation": "Keep the affected device isolated under the organization's incident-response procedure and examine it with approved security tools."
+    },
+
+    5: {
+        "name": "THE INSIDER INCIDENT",
+        "description": "A fictional organization notices unusual file access.",
+        "victim": "Quantum Research Lab",
+        "severity": "HIGH",
+        "suspects": ["192.0.2.120", "203.0.113.99"],
+        "correct_ip": "192.0.2.120",
+        "clues": [
+            "A restricted folder was accessed.",
+            "Access occurred outside normal working hours.",
+            "A large number of files were viewed."
+        ],
+        "logs": [
+            "09:00:00 INFO Research portal opened",
+            "09:15:00 INFO Public report viewed",
+            "22:10:10 WARNING Restricted folder accessed",
+            "22:12:20 ALERT Unusual file access volume",
+            "22:15:30 WARNING Access outside normal hours",
+            "22:20:00 INFO Security review initiated"
+        ],
+        "answer": "Unusual after-hours access to restricted files was detected.",
+        "recommendation": "Review authorization records, preserve logs and follow the organization's internal investigation process."
+    }
+}
+
+# ------------------------------------------
+# LOAD SAVED PROGRESS
+# ------------------------------------------
+
+if os.path.exists(SAVE_FILE):
+    print("\nPrevious investigation data found.")
+    choice = input("Load previous progress? (yes/no): ").lower()
+
+    if choice == "yes":
+        try:
+            file = open(SAVE_FILE, "r")
+            data = json.load(file)
+            file.close()
+
+            score = data.get("score", 0)
+            xp = data.get("xp", 0)
+            level = data.get("level", 1)
+            completed_cases = data.get("completed_cases", [])
+            evidence_locker = data.get("evidence_locker", [])
+            investigation_reports = data.get("reports", [])
+
+            print("Previous progress loaded!")
+        except:
+            print("Save file could not be loaded. Starting new investigation.")
+
+# ------------------------------------------
+# MAIN COMMAND CENTRE
+# ------------------------------------------
+
+while True:
+
+    print("\n" + "=" * 55)
+    print("             CYBER DETECTIVE")
+    print("             DIGITAL FORENSICS LAB")
+    print("=" * 55)
+
+    print("Investigator:", player_name)
+    print("Level:", level)
+    print("XP:", xp)
+    print("Score:", score)
+    print("Completed cases:", len(completed_cases), "/ 5")
+
+    print("\n[1] Open Investigation Board")
+    print("[2] Evidence Locker")
+    print("[3] Investigator Profile")
+    print("[4] Investigation Reports")
+    print("[5] Save Progress")
+    print("[6] Help and Cybersecurity Guide")
+    print("[7] Exit Laboratory")
+
+    main_choice = input("\nEnter command: ")
+
+    # ======================================
+    # INVESTIGATION BOARD
+    # ======================================
+
+    if main_choice == "1":
+
+        while True:
+            print("\n========== INVESTIGATION BOARD ==========")
+
+            for case_id, case in cases.items():
+
+                status = "COMPLETED" if case_id in completed_cases else "OPEN"
+
+                print("\nCase ID:", case_id)
+                print("Name:", case["name"])
+                print("Severity:", case["severity"])
+                print("Status:", status)
+
+            print("\n[0] Return to Command Centre")
+
+            case_choice = input("\nSelect case ID: ")
+
+            if not case_choice.isdigit():
+                print("Invalid case selection.")
+                continue
+
+            case_id = int(case_choice)
+
+            if case_id == 0:
+                break
+
+            if case_id not in cases:
+                print("Case does not exist.")
+                continue
+
+            case = cases[case_id]
+
+            if case_id in completed_cases:
+                print("This investigation has already been completed.")
+                continue
+
+            case_score = 0
+            collected_clues = []
+            examined_logs = False
+            analysis_complete = False
+
+            # ----------------------------------
+            # CASE INVESTIGATION MENU
+            # ----------------------------------
+
+            while True:
+
+                print("\n" + "-" * 45)
+                print("CASE:", case["name"])
+                print("Victim:", case["victim"])
+                print("Severity:", case["severity"])
+                print("-" * 45)
+
+                print("[1] Read Case Description")
+                print("[2] Examine Server Logs")
+                print("[3] View Investigation Clues")
+                print("[4] Collect Digital Evidence")
+                print("[5] Analyze Suspicious IP")
+                print("[6] Submit Investigation")
+                print("[0] Leave Case")
+
+                action = input("\nChoose investigation action: ")
+
+                # ----------------------------------
+                # CASE DESCRIPTION
+                # ----------------------------------
+
+                if action == "1":
+                    print("\nCASE DESCRIPTION")
+                    print(case["description"])
+                    print("Organization:", case["victim"])
+
+                # ----------------------------------
+                # SERVER LOG ANALYSIS
+                # ----------------------------------
+
+                elif action == "2":
+
+                    print("\n========== SERVER LOG ANALYZER ==========")
+
+                    for log in case["logs"]:
+                        print(log)
+
+                    examined_logs = True
+                    case_score += 10
+
+                    print("\nLog examination completed.")
+                    print("Remember: alerts are clues, not automatic proof.")
+
+                # ----------------------------------
+                # INVESTIGATION CLUES
+                # ----------------------------------
+
+                elif action == "3":
+
+                    print("\n========== INVESTIGATION CLUES ==========")
+
+                    for clue_number, clue in enumerate(case["clues"], 1):
+                        print(str(clue_number) + ".", clue)
+
+                    collected_clues = list(case["clues"])
+
+                # ----------------------------------
+                # EVIDENCE COLLECTION
+                # ----------------------------------
+
+                elif action == "4":
+
+                    print("\n========== DIGITAL EVIDENCE ==========")
+
+                    if not examined_logs:
+                        print("Examine the logs before collecting evidence.")
+                    else:
+
+                        evidence = (
+                            "Case " + str(case_id) +
+                            ": " + case["name"] +
+                            " - Server logs examined"
+                        )
+
+                        if evidence not in evidence_locker:
+                            evidence_locker.append(evidence)
+                            case_score += 15
+                            print("Evidence successfully collected!")
+                        else:
+                            print("This evidence is already in your locker.")
+
+                        print("Evidence:", evidence)
+
+                # ----------------------------------
+                # SUSPICIOUS IP ANALYSIS
+                # ----------------------------------
+
+                elif action == "5":
+
+                    print("\n========== IP INVESTIGATION ==========")
+
+                    print("Fictional IP addresses associated with this case:")
+
+                    for number, ip in enumerate(case["suspects"], 1):
+                        print(number, "-", ip)
+
+                    selected_ip = input("\nEnter IP to examine: ").strip()
+
+                    if selected_ip not in case["suspects"]:
+                        print("This IP is not listed in the case records.")
+
+                    elif selected_ip == case["correct_ip"]:
+                        print("\nThe selected address matches the case's primary indicator.")
+                        print("Remember: this is a fictional simulation.")
+                        case_score += 20
+                        analysis_complete = True
+
+                    else:
+                        print("\nThis address is not the primary indicator.")
+                        print("Review the server logs and clues.")
+
+                # ----------------------------------
+                # SUBMIT INVESTIGATION
+                # ----------------------------------
+
+                elif action == "6":
+
+                    if not examined_logs:
+                        print("You must examine the server logs first.")
+                        continue
+
+                    if not analysis_complete:
+                        print("Analyze the primary IP indicator first.")
+                        continue
+
+                    print("\n========== FINAL INVESTIGATION ==========")
+
+                    print("CASE:", case["name"])
+                    print("Victim:", case["victim"])
+                    print("Severity:", case["severity"])
+
+                    print("\nWhat do you think happened?")
+                    print(case["answer"])
+
+                    print("\nRecommended defensive response:")
+                    print(case["recommendation"])
+
+                    print("\nInvestigation score:", case_score)
+
+                    confidence = input(
+                        "\nDo you agree with the investigation findings? (yes/no): "
+                    ).lower()
+
+                    if confidence == "yes":
+
+                        completed_cases.append(case_id)
+                        score += case_score + 25
+                        xp += 100
+
+                        if xp >= level * 200:
+                            level += 1
+                            print("\nLEVEL UP!")
+                            print("New investigator level:", level)
+
+                        report = {
+                            "case_id": case_id,
+                            "case_name": case["name"],
+                            "victim": case["victim"],
+                            "severity": case["severity"],
+                            "result": "Investigation completed",
+                            "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                        }
+
+                        investigation_reports.append(report)
+
+                        print("\nCASE SUCCESSFULLY CLOSED!")
+                        print("XP earned: 100")
+                        print("Bonus score: 25")
+
+                        break
+
+                    else:
+                        print("Investigation remains open.")
+                        print("Review the clues and findings.")
+
+                elif action == "0":
+                    print("Leaving investigation.")
+                    break
+
+                else:
+                    print("Invalid command.")
+
+    # ======================================
+    # EVIDENCE LOCKER
+    # ======================================
+
+    elif main_choice == "2":
+
+        print("\n========== DIGITAL EVIDENCE LOCKER ==========")
+
+        if len(evidence_locker) == 0:
+            print("No evidence collected yet.")
+
+        else:
+            for number, evidence in enumerate(evidence_locker, 1):
+                print(number, ".", evidence)
+
+        print("\nTotal evidence records:", len(evidence_locker))
+
+    # ======================================
+    # INVESTIGATOR PROFILE
+    # ======================================
+
+    elif main_choice == "3":
+
+        print("\n========== INVESTIGATOR PROFILE ==========")
+
+        print("Name:", player_name)
+        print("Level:", level)
+        print("Experience:", xp)
+        print("Total score:", score)
+        print("Completed investigations:", len(completed_cases))
+        print("Evidence collected:", len(evidence_locker))
+
+        print("\nRank:")
+
+        if level >= 5:
+            print("MASTER DIGITAL INVESTIGATOR")
+        elif level >= 3:
+            print("SENIOR DIGITAL INVESTIGATOR")
+        elif level >= 2:
+            print("JUNIOR DIGITAL INVESTIGATOR")
+        else:
+            print("TRAINEE INVESTIGATOR")
+
+    # ======================================
+    # INVESTIGATION REPORTS
+    # ======================================
+
+    elif main_choice == "4":
+
+        print("\n========== INVESTIGATION REPORTS ==========")
+
+        if len(investigation_reports) == 0:
+            print("No reports generated yet.")
+
+        else:
+
+            for report in investigation_reports:
+
+                print("\nCase:", report["case_name"])
+                print("Victim:", report["victim"])
+                print("Severity:", report["severity"])
+                print("Result:", report["result"])
+                print("Date:", report["date"])
+                print("-" * 40)
+
+    # ======================================
+    # SAVE PROGRESS
+    # ======================================
+
+    elif main_choice == "5":
+
+        data = {
+            "score": score,
+            "xp": xp,
+            "level": level,
+            "completed_cases": completed_cases,
+            "evidence_locker": evidence_locker,
+            "reports": investigation_reports
+        }
+
+        try:
+            file = open(SAVE_FILE, "w")
+            json.dump(data, file, indent=4)
+            file.close()
+
+            print("\nProgress saved successfully!")
+
+        except:
+            print("Could not save progress.")
+
+    # ======================================
+    # HELP SECTION
+    # ======================================
+
+    elif main_choice == "6":
+
+        print("\n========== CYBERSECURITY GUIDE ==========")
+
+        print("""
+1. SERVER LOGS
+   Records of events occurring on a computer system.
+
+2. IP ADDRESS
+   An address used to identify a device on a network.
+
+3. DIGITAL EVIDENCE
+   Information that may help explain a security incident.
+
+4. PHISHING
+   A deceptive attempt to obtain sensitive information.
+
+5. MALWARE
+   Software designed to perform unwanted or harmful actions.
+
+6. INCIDENT RESPONSE
+   The process of identifying, investigating and responding
+   to a cybersecurity incident.
+
+IMPORTANT:
+This project uses fictional data and simulated investigations.
+It does not connect to real systems or investigate real people.
+""")
+
+    # ======================================
+    # EXIT
+    # ======================================
+
+    elif main_choice == "7":
+
+        print("\nBefore exiting, save your progress if needed.")
+        confirm = input("Exit the laboratory? (yes/no): ").lower()
+
+        if confirm == "yes":
+            print("\nInvestigator", player_name, "signed out.")
+            print("Final score:", score)
+            print("Cases completed:", len(completed_cases))
+            print("Thanks for playing CYBER DETECTIVE!")
+            break
+
+    else:
+        print("Invalid command. Try again.")
